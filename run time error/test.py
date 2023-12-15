@@ -9,7 +9,7 @@ def divide_numbers(numerator, denominator):
 
 # Example usage:
 numerator_value = 10
-denominator_value = 0
+denominator_value = 2
 
 # Attempt to divide the numbers and handle any errors
 result = divide_numbers(numerator_value, denominator_value)
