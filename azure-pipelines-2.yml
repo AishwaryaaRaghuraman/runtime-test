@@ -1,0 +1,69 @@
+# Azure DevOps YAML pipeline for deploying a Kubernetes application to AKS
+
+# Parameters
+parameters:
+  # Git repository details
+  gitUsername: $(gitUsername)
+  gitRepoName: $(gitRepoName)
+  gitBranchName: $(gitBranchName)
+
+  # AKS cluster details
+  aksClusterName: $(aksClusterName)
+  aksResourceGroup: $(aksResourceGroup)
+
+  # Image details
+  imageName: $(imageName)
+  imageTag: $(imageTag)
+
+  # Namespace details
+  namespace: $(namespace)
+
+# Stages
+stages:
+  - CloneRepo
+  - BuildImage
+  - DeployToAKS
+
+# Jobs
+jobs:
+  - job: CloneRepo
+    displayName: Clone Git Repository
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+      - task: GitClone@0
+        displayName: Clone Git Repository
+        inputs:
+          repositoryName: $(gitRepoName)
+          branch: $(gitBranchName)
+          targetPath: '$(Build.ArtifactStagingDirectory)'
+
+  - job: BuildImage
+    displayName: Build Docker Image
+    dependsOn: CloneRepo
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+      - task: Docker@2
+        displayName: Build and Push Docker Image
+        inputs:
+          containerRegistry: 'Azure Container Registry'
+          repository: $(imageName)
+          tag: $(imageTag)
+          dockerFile: '$(Build.ArtifactStagingDirectory)/Dockerfile'
+
+  - job: DeployToAKS
+    displayName: Deploy to AKS Cluster
+    dependsOn: BuildImage
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+      - task: Kubernetes@1
+        displayName: Deploy to AKS Cluster
+        inputs:
+          connectionType: 'Azure Resource Manager'
+          azureSubscription: '$(azureSubscription)'
+          kubernetesCluster: $(aksClusterName)
+          resourceGroup: $(aksResourceGroup)
+          namespace: $(namespace)
+          command: 'apply -f deployment.yaml'
