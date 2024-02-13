@@ -1,0 +1,101 @@
+# Azure Pipelines YAML file for Springboot Maven application
+
+# Variables
+variables:
+  # Git repository details
+  gitUsername: $(gitUsername)
+  repoName: $(repoName)
+  branchName: $(branchName)
+
+  # Maven settings
+  mavenSettingsFile: $(mavenSettingsFile)
+
+  # SonarQube details
+  sonarQubeServerUrl: $(sonarQubeServerUrl)
+  sonarQubeLogin: $(sonarQubeLogin)
+  sonarQubePassword: $(sonarQubePassword)
+
+  # Nexus details
+  nexusUrl: $(nexusUrl)
+  nexusUsername: $(nexusUsername)
+  nexusPassword: $(nexusPassword)
+
+# Stages
+stages:
+  - Clone
+  - Build
+  - SonarQube Scan
+  - Quality Gate
+  - Clean
+  - Upload Artifacts
+
+# Jobs
+jobs:
+  # Clone the Git repository
+  Clone:
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+      - checkout: self
+        clean: true
+        lfs: true
+        submodules: true
+        sshKey: $(gitUsername)
+
+  # Build the Springboot application using Maven
+  Build:
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+      - task: UseMaven@1
+        inputs:
+          mavenVersion: '3.x'
+          mavenAuthenticateFeed: true
+          mavenSettingsFile: $(mavenSettingsFile)
+          goals: 'clean package'
+
+  # Perform SonarQube scan
+  SonarQube Scan:
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+      - task: SonarQubePrepare@4
+        inputs:
+          SonarQube: $(sonarQubeServerUrl)
+          scannerMode: 'MSBuild'
+          projectKey: $(repoName)
+          projectName: $(repoName)
+          projectVersion: '1.0'
+
+      - task: SonarQubeAnalyze@4
+
+  # Check the quality gate status
+  Quality Gate:
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+      - task: SonarQubePublish@4
+        inputs:
+          SonarQube: $(sonarQubeServerUrl)
+          publishResults: false
+
+  # Clean the local directory
+  Clean:
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+      - script: rm -rf $(Build.SourcesDirectory)/target
+
+  # Upload artifacts to Nexus
+  Upload Artifacts:
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+      - task: PublishBuildArtifacts@1
+        inputs:
+          PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+          ArtifactName: '$(Build.BuildNumber)'
+          publishLocation: 'Container'
+          target: '$(nexusUrl)'
+          username: $(nexusUsername)
+          password: $(nexusPassword)
